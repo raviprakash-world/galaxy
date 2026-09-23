@@ -52,6 +52,7 @@ void main(){
 
 export const planetFrag = /* glsl */ `
 uniform int uKind; uniform vec3 uSun; uniform float uTime; uniform sampler2D uMask;
+uniform sampler2D uDayMap; uniform sampler2D uNightMap; uniform sampler2D uOceanMap; uniform float uTexOn;
 uniform vec3 uAtmo; uniform float uAtmoAmt; uniform float uAmbient;
 uniform vec3 uCenter; uniform vec3 uRingN; uniform float uRadius; uniform float uRing;
 uniform float uFocus; uniform float uLights; uniform float uDayNight; uniform float uAtmoOn;
@@ -70,7 +71,8 @@ void main(){
 
   if (uKind == 0) { // ---- Earth
     float lat = asin(clamp(p.y,-1.,1.)), lon = atan(-p.z,p.x);
-    float m = texture2D(uMask, vec2(lon/6.2831853+.5, lat/3.1415926+.5)).r;
+    vec2 uv = vec2(lon/6.2831853+.5, lat/3.1415926+.5); // equirectangular; matches the day/night/cloud textures
+    float m = texture2D(uMask, uv).r;
     float n1 = fbm(p*5.+3.), n2 = fbm(p*18.);
     float lv = m + (n1-.5)*.62 + (n2-.5)*.26;
     float land = smoothstep(.45,.5,lv);
@@ -95,12 +97,23 @@ void main(){
     water = 1. - isLand;
     h = smoothstep(.4,.62,lv) * (.2 + mount*.8); bump = 1.3;
     coast = 1. - smoothstep(0., .04, abs(lv-.475));
-    if (uFocus > .5 && uFocus < 1.5) { albedo = mix(albedo*.3, albedo*1.25, isLand); albedo += vec3(.3,.45,1.)*coast*.55; }
-    if (uFocus > 1.5) { albedo = mix(albedo*1.55, albedo*.3, isLand); albedo += vec3(.3,.45,1.)*coast*.55; }
-    // city lights: warm specks clustered in temperate latitudes
+
+    // Real NASA-derived imagery (day/night/ocean mask), crossfaded in as it loads. See README (Assets).
+    vec3 dayTex = texture2D(uDayMap, uv).rgb;
+    float oceanTex = texture2D(uOceanMap, uv).r; // 1 = ocean, 0 = land, precomputed from the day map
+    albedo = mix(albedo, dayTex, uTexOn);
+    water = mix(water, oceanTex, uTexOn);
+    isLand = mix(isLand, 1. - oceanTex, uTexOn);
+    bump = mix(bump, 0.6, uTexOn);
+
+    if (uFocus > .5 && uFocus < 1.5) { albedo = mix(albedo*.3, albedo*1.25, isLand); albedo += vec3(.3,.45,1.)*coast*.55*(1.-uTexOn); }
+    if (uFocus > 1.5) { albedo = mix(albedo*1.55, albedo*.3, isLand); albedo += vec3(.3,.45,1.)*coast*.55*(1.-uTexOn); }
+    // city lights: real night-lights texture, with procedural specks as the fallback while it loads
     float pop = smoothstep(.6,.8, fbm(p*9.+31.)) * smoothstep(.9,.6,la);
     float sp = smoothstep(.9,1.08, vnoise(p*110.) + .25*vnoise(p*260.));
-    emis = vec3(1.,.72,.38) * isLand * (1.-ice) * (pop*sp*1.3 + pop*.03) * uLights;
+    vec3 emisProc = vec3(1.,.72,.38) * isLand * (1.-ice) * (pop*sp*1.3 + pop*.03);
+    vec3 emisTex = texture2D(uNightMap, uv).rgb * 1.7;
+    emis = mix(emisProc, emisTex, uTexOn) * uLights;
   }
   else if (uKind == 6) { // ---- Mercury
     float c = craters(p*3.) + .6*craters(p*8.5);
@@ -219,7 +232,7 @@ void main(){
 }`
 
 export const cloudFrag = /* glsl */ `
-uniform vec3 uSun; uniform float uTime; uniform float uDayNight;
+uniform vec3 uSun; uniform float uTime; uniform float uDayNight; uniform sampler2D uCloudMap; uniform float uTexOn;
 varying vec3 vP; varying vec3 vN; varying vec3 vW;
 ${NOISE}
 void main(){
@@ -228,7 +241,11 @@ void main(){
   vec3 L = normalize(uSun - vW);
   float geo = uDayNight < .5 ? .8 : dot(N, L);
   float c = fbm(p*4.6 + fbm(p*9. + uTime*.006)*.8);
-  float a = smoothstep(.55,.63,c) * (.45 + .55*smoothstep(.3,.65,fbm(p*22.)));
+  float aProc = smoothstep(.55,.63,c) * (.45 + .55*smoothstep(.3,.65,fbm(p*22.)));
+  float lat = asin(clamp(p.y,-1.,1.)), lon = atan(-p.z,p.x);
+  float cTex = texture2D(uCloudMap, vec2(lon/6.2831853+.5, lat/3.1415926+.5)).r;
+  float aTex = smoothstep(.18,.72,cTex);
+  float a = mix(aProc, aTex, uTexOn);
   float diff = max(geo,0.)*smoothstep(-.05,.15,geo);
   vec3 col = vec3(.97,.98,1.)*(diff*1.05 + .012);
   col += vec3(1.,.55,.3) * exp(-pow(geo/.09,2.)) * .12;

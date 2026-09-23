@@ -33,14 +33,16 @@ Tab reaches every object label, dock chip and panel control. `Ctrl/⌘+K` or `/`
 
 ## Assets (the honest version)
 
-**No image textures are used, and nothing is downloaded at runtime.** Every surface is procedural:
+Every planet surface is procedural GLSL (`src/shaders/planet.ts`), **except Earth**, which uses three real image textures:
 
-- **Planet surfaces**: GLSL fragment shaders (`src/shaders/planet.ts`). Bump mapping is derived from the same height field on screen (`dFdx/dFdy`), craters are cellular noise, Jupiter/Saturn/Neptune bands use latitude-dependent differential rotation, Saturn's ring density (C/B/A rings, Cassini division, Encke gap) is shared by the ring shader and the planet's ring-shadow test, and the ring gets a planet shadow.
-- **Earth's continents** come from ~35 hand-simplified lon/lat outlines (`src/lib/painters.ts`), softened into a small mask and then given fractal coastlines, biomes, ice caps, mountains and night lights in the shader. It is recognisably Earth, but it is not satellite imagery.
+- **Earth day/night/clouds** — `public/textures/earth/{day,night,clouds}.jpg`, all 4096×2048 (~5.4MB total), downsampled locally from Solar System Scope's 8K source so it's real detail, not an upscale. The cloud map is the heaviest of the three (~3.4MB) since cloud texture is high-frequency noise everywhere and compresses poorly; if load time on slow connections matters more than crispness up close, drop it back to 2K only (it's the layer people scrutinize least). Source: [Solar System Scope textures](https://www.solarsystemscope.com/textures/), CC BY 4.0, derived from NASA Blue Marble, Black Marble (VIIRS night lights) and MODIS cloud imagery. Attribution: Solar System Scope (solarsystemscope.com), NASA. An ocean/land mask is derived from the day texture at load (`makeOceanMask` in `src/lib/painters.ts`) rather than fetching a fourth file.
+- **Loading behaviour**: Earth renders with the procedural continents (below) the instant it appears, then crossfades to the real imagery once all three files load (`uTexOn` in the shader). If a file 404s or the network is unavailable, it simply stays on the procedural version forever — no blank planet, no error state.
+- **Planet surfaces** (everything else, and Earth's fallback): GLSL fragment shaders. Bump mapping is derived from the same height field on screen (`dFdx/dFdy`), craters are cellular noise, Jupiter/Saturn/Neptune bands use latitude-dependent differential rotation, Saturn's ring density (C/B/A rings, Cassini division, Encke gap) is shared by the ring shader and the planet's ring-shadow test, and the ring gets a planet shadow.
+- **Earth's procedural fallback** comes from ~35 hand-simplified lon/lat continent outlines (`src/lib/painters.ts`), softened into a small mask and given fractal coastlines, biomes, ice caps, mountains and night lights in the shader.
 - **Deep-space illustrations** (galaxy, nebulae, black hole, etc.) are canvas-2D paintings, not photographs. They are labelled as procedural in the UI.
 - **Fonts**: Manrope via `@fontsource-variable/manrope` (SIL OFL), bundled locally.
 
-Facts come from NASA's Planetary Fact Sheet and NASA/ESA/ESO/Hubble/Webb science releases; measurements are rounded and moon counts (IAU Minor Planet Center, 2025) keep changing. If you want photographic textures, NASA imagery (e.g. Blue Marble, Solar System Exploration maps) is public domain and can replace the Earth mask/albedo, but it wasn't added here because that means downloading third-party files.
+Facts come from NASA's Planetary Fact Sheet and NASA/ESA/ESO/Hubble/Webb science releases; measurements are rounded and moon counts (IAU Minor Planet Center, 2025) keep changing.
 
 ## Known limitations
 

@@ -52,7 +52,7 @@ export default function Scene() {
       <Canvas
         dpr={[1, dpr]} flat
         camera={{ fov: 45, near: 0.05, far: 3000, position: [0, 0.5, 34] }}
-        gl={{ antialias: !Q.mobile, powerPreference: 'high-performance', alpha: false }}
+        gl={{ antialias: !Q.mobile, powerPreference: 'high-performance', alpha: false, preserveDrawingBuffer: true }}
         onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); useStore.getState().set({ webglFailed: true }) })}
         aria-label="Interactive 3D view of the universe" role="img"
       >

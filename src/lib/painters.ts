@@ -86,6 +86,26 @@ export function makeLandMask() {
   return tex
 }
 
+/** Ocean/land mask derived from the real day-map image: blue-dominant, darker pixels read as ocean. */
+export function makeOceanMask(img: HTMLImageElement) {
+  const W = 512, H = 256
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const ctx = c.getContext('2d')!
+  ctx.drawImage(img, 0, 0, W, H)
+  const { data } = ctx.getImageData(0, 0, W, H)
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2]
+    const ocean = b > r + 8 && b > g - 6 && r + g + b < 420
+    data[i] = data[i + 1] = data[i + 2] = ocean ? 255 : 0
+  }
+  ctx.putImageData(new ImageData(data, W, H), 0, 0)
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.generateMipmaps = false
+  tex.minFilter = tex.magFilter = THREE.LinearFilter
+  return tex
+}
+
 /* ---------- glow sprite ---------- */
 export function makeGlow(stops: [number, string][], size = 256) {
   const c = document.createElement('canvas'); c.width = c.height = size
